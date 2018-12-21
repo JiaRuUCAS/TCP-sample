@@ -12,6 +12,8 @@ AM_CFLAGS += $(TCPS_CFLAGS)
 
 AM_LDFLAGS = $(TCPS_LDFLAGS)
 
+OBJDIR = build/obj
+
 if TCPS_DEBUG
 AM_CPPFLAGS = -DTCPS_DEBUG
 else
@@ -21,6 +23,7 @@ endif
 
 
 bin_PROGRAMS =
-lib_LIBRARIES =
+lib_LTLIBRARIES =
 
 include src/automake.mk
+include mperf/automake.mk
