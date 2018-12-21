@@ -17,14 +17,14 @@
 
 static int loop = 1;
 
-static void
-__sig_handler(int signo)
-{
-	if (signo == SIGINT) {
-		loop = 0;
-		fprintf(stdout, "Recv SIGINT\n");
-	}
-}
+//static void
+//__sig_handler(int signo)
+//{
+//	if (signo == SIGINT) {
+//		loop = 0;
+//		fprintf(stdout, "Recv SIGINT\n");
+//	}
+//}
 
 static int
 __set_nonblocking(int sock)
@@ -132,7 +132,8 @@ int main(int argc, char **argv)
 				fprintf(stdout, "EPOLLOUT\n");
 
 				memset(buf, 0, BUF_SIZE);
-				fgets(buf, BUF_SIZE, stdin);
+				if (fgets(buf, BUF_SIZE, stdin) == NULL)
+					continue;
 				nread = strlen(buf);
 				nsend = 0;
 

@@ -21,6 +21,8 @@ AC_SEARCH_LIBS([pthread_create], [pthread])
 AC_SEARCH_LIBS([dlopen], [dl])
 AC_SEARCH_LIBS([pow], [m])
 
+TCPS_CHECK_DPDK
+TCPS_CHECK_MTCP
 
 # Checks for header files.
 AC_CHECK_HEADERS([stdint.h unistd.h])

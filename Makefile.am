@@ -4,7 +4,7 @@ AUTOMAKE_OPTIONS = foreign subdir-objects
 
 AM_CFLAGS = -Wstrict-prototypes
 AM_CFLAGS += -Werror
-AM_CFLAGS += -O2 -g -Wall
+AM_CFLAGS += -O2 -g -Wall -lrt -lpthread
 AM_CFLAGS += $(TCPS_CFLAGS)
 #AM_CFLAGS += -D_FILE_OFFSET_BITS=64
 
