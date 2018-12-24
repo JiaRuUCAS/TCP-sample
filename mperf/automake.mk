@@ -6,8 +6,10 @@ libmperf_la_CFLAGS = $(AM_CFLAGS)
 libmperf_la_CPPFLAGS = $(AM_CPPFLAGS)
 libmperf_la_include_HEADERS =
 libmperf_la_includedir = $(includedir)/mperf
-libmperf_la_SOURCES = mperf/cjson.c		\
-					  mperf/units.c		\
+libmperf_la_SOURCES = mperf/cjson.c			\
+					  mperf/mperf_api.c		\
+					  mperf/mperf_error.c	\
+					  mperf/units.c			\
 					  mperf/timer.c
 endif
 endif
