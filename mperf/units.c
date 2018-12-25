@@ -70,10 +70,15 @@ const double MEGA_UNIT = 1024.0 * 1024.0;
 const double GIGA_UNIT = 1024.0 * 1024.0 * 1024.0;
 const double TERA_UNIT = 1024.0 * 1024.0 * 1024.0 * 1024.0;
 
-const double KILO_RATE_UNIT = 1000.0;
-const double MEGA_RATE_UNIT = 1000.0 * 1000.0;
-const double GIGA_RATE_UNIT = 1000.0 * 1000.0 * 1000.0;
-const double TERA_RATE_UNIT = 1000.0 * 1000.0 * 1000.0 * 1000.0;
+//const double KILO_RATE_UNIT = 1000.0;
+//const double MEGA_RATE_UNIT = 1000.0 * 1000.0;
+//const double GIGA_RATE_UNIT = 1000.0 * 1000.0 * 1000.0;
+//const double TERA_RATE_UNIT = 1000.0 * 1000.0 * 1000.0 * 1000.0;
+
+#define KILO_UNIT_SHIFT	10
+#define MEGA_UNIT_SHIFT	20
+#define GIGA_UNIT_SHIFT 30
+#define TERA_UNIT_SHIFT	40
 
 /* -------------------------------------------------------------------
  * unit_atof
@@ -82,34 +87,34 @@ const double TERA_RATE_UNIT = 1000.0 * 1000.0 * 1000.0 * 1000.0;
  * character listed below, this returns the interpreted integer.
  * Gg, Mm, Kk are giga, mega, kilo respectively
  * ------------------------------------------------------------------- */
-double unit_atof(const char *s)
+uint64_t unit_atolu(const char *s)
 {
-	double n;
+	uint64_t u;
 	char suffix = '\0';
 
 	assert(s != NULL);
 
 	/* scan the number and any suffices */
-	sscanf(s, "%lf%c", &n, &suffix);
+	sscanf(s, "%lu%c", &u, &suffix);
 
 	/* convert according to [Tt Gg Mm Kk] */
 	switch(suffix) {
 		case 't': case 'T':
-			n *= TERA_UNIT;
+			u = u << TERA_UNIT_SHIFT;
 			break;
 		case 'g': case 'G':
-			n *= GIGA_UNIT;
+			u = u << GIGA_UNIT_SHIFT;
 			break;
 		case 'm': case 'M':
-			n *= MEGA_UNIT;
+			u = u << MEGA_UNIT_SHIFT;
 			break;
 		case 'k': case 'K':
-			n *= KILO_UNIT;
+			u = u << KILO_UNIT_SHIFT;
 			break;
 		default:
 			break;
 	}
-	return n;
+	return u;
 }				/* end unit_atof */
 
 
@@ -119,9 +124,10 @@ double unit_atof(const char *s)
  * Similar to unit_atof, but uses 10-based rather than 2-based
  * suffixes.
  * ------------------------------------------------------------------- */
-double unit_atof_rate(const char *s)
+uint64_t unit_atou_rate(const char *s)
 {
 	double n;
+	uint64_t u;
 	char suffix = '\0';
 
 	assert(s != NULL);
@@ -129,62 +135,27 @@ double unit_atof_rate(const char *s)
 	/* scan the number and any suffices */
 	sscanf(s, "%lf%c", &n, &suffix);
 
+	u = (uint64_t)n;
+
 	/* convert according to [Tt Gg Mm Kk] */
 	switch(suffix) {
 		case 't': case 'T':
-			n *= TERA_RATE_UNIT;
+			u = u << TERA_UNIT_SHIFT;
 			break;
 		case 'g': case 'G':
-			n *= GIGA_RATE_UNIT;
+			u = u << GIGA_UNIT_SHIFT;
 			break;
 		case 'm': case 'M':
-			n *= MEGA_RATE_UNIT;
+			u = u << MEGA_UNIT_SHIFT;
 			break;
 		case 'k': case 'K':
-			n *= KILO_RATE_UNIT;
+			u = u << KILO_UNIT_SHIFT;
 			break;
 		default:
 			break;
 	}
-	return n;
+	return u;
 }				/* end unit_atof_rate */
-
-/* -------------------------------------------------------------------
- * unit_atoi
- *
- * Given a string of form #x where # is a number and x is a format
- * character listed below, this returns the interpreted integer.
- * Tt, Gg, Mm, Kk are tera, giga, mega, kilo respectively
- * ------------------------------------------------------------------- */
-mperf_size_t unit_atoi(const char *s)
-{
-	double n;
-	char suffix = '\0';
-
-	assert(s != NULL);
-
-	/* scan the number and any suffices */
-	sscanf(s, "%lf%c", &n, &suffix);
-
-	/* convert according to [Tt Gg Mm Kk] */
-	switch(suffix) {
-		case 't': case 'T':
-			n *= TERA_UNIT;
-			break;
-		case 'g': case 'G':
-			n *= GIGA_UNIT;
-			break;
-		case 'm': case 'M':
-			n *= MEGA_UNIT;
-			break;
-		case 'k': case 'K':
-			n *= KILO_UNIT;
-			break;
-		default:
-			break;
-	}
-	return (mperf_size_t) n;
-}				/* end unit_atof */
 
 /* -------------------------------------------------------------------
  * constants for byte_printf

@@ -23,7 +23,7 @@ endif
 
 
 bin_PROGRAMS =
-lib_LTLIBRARIES =
+lib_LIBRARIES =
 
 include src/automake.mk
 include mperf/automake.mk

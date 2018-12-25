@@ -8,7 +8,6 @@ AC_CONFIG_HEADERS([config.h])
 
 AM_INIT_AUTOMAKE
 
-LT_INIT
 
 AC_SUBST([TCPS_CFLAGS])
 AC_SUBST([TCPS_LDFLAGS])
@@ -16,7 +15,7 @@ AC_SUBST([TCPS_LDFLAGS])
 # Checks for programs.
 AC_PROG_CC
 AC_PROG_MKDIR_P
-#AC_PROG_RANLIB
+AC_PROG_RANLIB
 
 # Checks for libraries.
 AC_SEARCH_LIBS([pthread_create], [pthread])

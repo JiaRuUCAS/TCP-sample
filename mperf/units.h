@@ -34,9 +34,9 @@ enum {
     UNIT_LEN = 32
 };
 
-double unit_atof( const char *s );
-double unit_atof_rate( const char *s );
-mperf_size_t unit_atoi( const char *s );
+uint64_t unit_atolu( const char *s );
+uint64_t unit_atou_rate( const char *s );
+//int unit_atoi( const char *s );
 void unit_snprintf( char *s, int inLen, double inNum, char inFormat );
 
 #endif
