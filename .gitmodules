@@ -1,5 +1,4 @@
 [submodule "dpdk"]
 	path = dpdk
-	url = https://dpdk.org/git/dpdk
-	branch = devel
-	commit = 92924b207b124c156f7b6dff75110d6af83d971f
+	url = http://dpdk.org/git/dpdk-stable
+	branch = 18.02
