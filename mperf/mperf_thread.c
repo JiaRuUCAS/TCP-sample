@@ -8,6 +8,7 @@
 #include <pthread.h>
 
 #include <mtcp_api.h>
+#include <mtcp_epoll.h>
 
 #include "mperf_api.h"
 #include "mperf_thread.h"
@@ -21,6 +22,7 @@ static struct thread_context threads[THREAD_MAX] = {{
 	.pid = -1,
 	.tid = UINT64_MAX,
 	.mctx = NULL,
+	.epollfd = -1,
 	.state = WORKER_UNUSED,
 	.done = 0,}
 };
@@ -49,6 +51,14 @@ mperf_init_worker(uint8_t core) {
 	if (!ctx->mctx) {
 		LOG_ERROR("Failed to create mtcp context (core %u) for thread %u",
 						core, thread_id);
+		return NULL;
+	}
+
+	// create epollfd
+	ctx->epollfd = mtcp_epoll_create(ctx->mctx, EPOLL_EVENT_MAX);
+	if (ctx->epollfd == -1) {
+		LOG_ERROR("Failed to create epollfd for thread %u", thread_id);
+		mperf_destroy_mctx(ctx->mctx);
 		return NULL;
 	}
 
@@ -95,8 +105,8 @@ __worker_routine(void *arg)
 					ctx->pid, ctx->tid, ctx->core);
 	ctx->routine(ctx->arg);
 
-	mtcp_destroy_context(ctx->mctx);
-	ctx->mctx = NULL;
+	mperf_close_mtcp_fd(ctx->mctx, ctx->epollfd);
+	mperf_destroy_mctx(ctx->mctx);
 
 	pthread_exit(NULL);
 	ctx->state = WORKER_CLOSE;
@@ -171,9 +181,10 @@ mperf_destroy_workers(void)
 	for (i = 0; i < n_thread; i++) {
 		ctx = &threads[i];
 
-		if (ctx->mctx) {
-			mtcp_destroy_context(ctx->mctx);
-			ctx->mctx = NULL;
-		}
+		if (ctx->state == WORKER_UNUSED || ctx->state == WORKER_ERROR)
+			continue;
+
+		mperf_close_mtcp_fd(ctx->mctx, ctx->epollfd);
+		mperf_destroy_mctx(ctx->mctx);
 	}
 }

@@ -49,12 +49,10 @@ struct mperf_test;
 //struct mperf_stream;
 
 /* default settings */
-#define Ptcp SOCK_STREAM
-#define Pudp SOCK_DGRAM
-#define Psctp 12
-#define DEFAULT_UDP_BLKSIZE 1460 /* default is dynamically set, else this */
 #define DEFAULT_TCP_BLKSIZE (128 * 1024)  /* default read/write block size */
 #define DEFAULT_SCTP_BLKSIZE (64 * 1024)
+/* TCP backlog */
+#define BACKLOG	4096
 
 /* states */
 #define TEST_START 1
@@ -97,14 +95,33 @@ struct mperf_test;
 #define LOG_DEBUG(format, ...)
 #endif
 
+/* MTCP wrappers */
+/* close MTCP fd */
+#define mperf_close_mtcp_fd(mctx, fd)	{	\
+	if (fd == -1) {							\
+		mtcp_close(mctx, fd);				\
+		fd = -1;							\
+	}}
+
+/* destroy mtcp context */
+#define mperf_destroy_mctx(mctx)	{	\
+	if (mctx) {							\
+		mtcp_destroy_context(mctx);		\
+		mctx = NULL;					\
+	}}
+
 
 /* Command line rontines */
 void mperf_usage(FILE *f);
 int mperf_parse_args(struct mperf_test *test, int argc, char **argv);
 
+
 /* Initialization */
 void mperf_set_default(struct mperf_test *test);
 
+
+/* Server routines */
+int mperf_create_listener(struct mperf_test *test);
 
 #ifdef __cplusplus
 } /* close extern "C" */

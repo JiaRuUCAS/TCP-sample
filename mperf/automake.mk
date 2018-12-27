@@ -11,6 +11,7 @@ libmperf_a_SOURCES =  mperf/mperf_api.c		\
 					  mperf/mperf_util.c	\
 					  mperf/net.c			\
 					  mperf/units.c			\
+					  mperf/server.c		\
 					  mperf/timer.c
 
 
