@@ -36,6 +36,8 @@
 #include <stdint.h>
 #endif
 
+#include "mperf_thread.h"
+
 #ifdef __cplusplus
 extern "C" { /* open extern "C" */
 #endif
@@ -53,9 +55,6 @@ struct mperf_test;
 #define DEFAULT_UDP_BLKSIZE 1460 /* default is dynamically set, else this */
 #define DEFAULT_TCP_BLKSIZE (128 * 1024)  /* default read/write block size */
 #define DEFAULT_SCTP_BLKSIZE (64 * 1024)
-
-/* short option equivalents, used to support options that only have long form */
-#define OPT_LOGFILE 2
 
 /* states */
 #define TEST_START 1
@@ -80,29 +79,24 @@ struct mperf_test;
 /* Error routines. */
 
 /* Log printer: Error level */
-#define LOG_ERROR(fp, format, ...) \
-{	if (fp != NULL && fp != stdout) {										\
-		fprintf(fp, "[ERROR]  %s %d: " format "\n",							\
-					__FILE__, __LINE__, ##__VA_ARGS__);						\
-	}																		\
-	fprintf(stderr, "[mperf]\033[31m[ERROR]\033[0m  %s %d: " format "\n",	\
-					__FILE__, __LINE__, ##__VA_ARGS__);						\
-}
+#define LOG_ERROR(format, ...) \
+	fprintf(stderr, "\033[31m[ERROR][T%u]\033[0m %s %d: " format "\n",	\
+					thread_id, __FILE__, __LINE__, ##__VA_ARGS__);
 
 /* Log printer: Information level */
-#define LOG_INFO(fp, format, ...) \
-		fprintf(fp, "[INFO]  %s %d: " format "\n", \
-						__FILE__, __LINE__, ##__VA_ARGS__);
+#define LOG_INFO(format, ...) \
+		fprintf(stdout, "[INFO][T%u] %s %d: " format "\n", \
+						thread_id, __FILE__, __LINE__, ##__VA_ARGS__);
 
+#ifdef TCPS_DEBUG
 /* Log printer: Warning level */
-#define LOG_WARN(fp, format, ...) \
-		fprintf(fp, "[WARN]  %s %d: " format "\n", \
-						__FILE__, __LINE__, ##__VA_ARGS__);
+#define LOG_DEBUG(format, ...) \
+		fprintf(stderr, "[DEBUG][T%u] %s %d: " format "\n", \
+						thread_id, __FILE__, __LINE__, ##__VA_ARGS__);
+#else
+#define LOG_DEBUG(format, ...)
+#endif
 
-
-/* JSON output routines */
-int mperf_json_start(struct mperf_test *);
-int mperf_json_finish(struct mperf_test *);
 
 /* Command line rontines */
 void mperf_usage(FILE *f);

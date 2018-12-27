@@ -12,7 +12,6 @@
 
 #include <mtcp_api.h>
 
-#include "cjson.h"
 #include "queue.h"
 
 /* default settings */
@@ -81,8 +80,6 @@ struct mperf_test {
 		struct {
 			/* -V option - more detialed output */
 			uint8_t verbose		: 1;
-			/* -J option - JSON output */
-			uint8_t json_output	: 1;
 			/* run server routines */
 			uint8_t role_server	: 1;
 			/* run client routines */
@@ -90,7 +87,7 @@ struct mperf_test {
 			/* -N option - disable Negal algorithm */
 			uint8_t no_delay	: 1;
 			/* unused bits */
-			uint8_t unused		: 3;
+			uint8_t unused		: 4;
 		};
 		uint8_t flags;
 	};
@@ -98,27 +95,6 @@ struct mperf_test {
 	/* file */
 	/* Path to mtcp configuration file */
 	char *mtcp_conf;
-	/* log file */
-	char *logfile;
-	/* File descriptor of output */
-	FILE *outfile;
-
-	/* cJSON handles for use when in -J mode */
-	cJSON *json_top;
-	cJSON *json_start;
-	cJSON *json_connected;
-	cJSON *json_intervals;
-	cJSON *json_end;
-
-	/* rendered JSON output if json_output is set */
-	char *json_output_string;
-
-	/* Server output (use on client side only) */
-	char *server_output_text;
-	cJSON *json_server_output;
-
-	/* Server output (use on server side only) */
-	TAILQ_HEAD(mperf_testlisthead, mperf_textline) server_output_list;
 };
 
 

@@ -65,7 +65,6 @@
 #include "mperf_util.h"
 
 #include "units.h"
-#include "cjson.h"
 
 static inline int
 __parse_ipaddr(struct in_addr *ip, const char *ipstr)
@@ -88,8 +87,6 @@ mperf_usage(FILE *f)
 			"  -p, --port		#			server port to listen on/connect to\n"
 			"  -f, --format	 	[kmgtKMGT] 	format to report: Kbits, Mbits, Gbits, Tbits\n"
 			"  -V, --verbose				more detailed output\n"
-			"  -j, --json					output in JSON format\n"
-			"  --logfile		<file>		send output to a log file\n"
 			"  -v, --version				show version information and quit\n"
 			"  -h, --help					show this message and quit\n"
 			"Server specific:\n"
@@ -118,7 +115,6 @@ mperf_parse_args(struct mperf_test *test, int argc, char **argv)
 		{"port", required_argument, NULL, 'p'},
 		{"format", required_argument, NULL, 'f'},
 		{"verbose", no_argument, NULL, 'V'},
-		{"json", no_argument, NULL, 'j'},
 		{"version", no_argument, NULL, 'v'},
 		{"server", required_argument, NULL, 's'},
 		{"client", required_argument, NULL, 'c'},
@@ -129,7 +125,6 @@ mperf_parse_args(struct mperf_test *test, int argc, char **argv)
 		{"length", required_argument, NULL, 'l'},
 		{"window", required_argument, NULL, 'w'},
 		{"set-mss", required_argument, NULL, 'M'},
-		{"logfile", required_argument, NULL, OPT_LOGFILE},
 		{"no-delay", no_argument, NULL, 'N'},
 		{"help", no_argument, NULL, 'h'},
 		{NULL, 0, NULL, 0}
@@ -139,7 +134,7 @@ mperf_parse_args(struct mperf_test *test, int argc, char **argv)
 	uint32_t blksize = 0;
 	uint8_t duration_flag = 0, mtcp_flag = 0;
 
-	while ((flag = getopt_long(argc, argv, "m:p:f:Vjvs:c:b:t:n:k:l:w:M:Nh",
+	while ((flag = getopt_long(argc, argv, "m:p:f:Vvs:c:b:t:n:k:l:w:M:Nh",
 									longopts, NULL)) != -1) {
 		switch (flag) {
 			case 'm':
@@ -153,7 +148,7 @@ mperf_parse_args(struct mperf_test *test, int argc, char **argv)
 
 			case 'f':
 				if (!optarg) {
-					LOG_ERROR(NULL, "No format specifier specified for option -f,"
+					LOG_ERROR("No format specifier specified for option -f,"
 									" valid formats are in the set [kmgtKMGT]");
 					return -1;
 				}
@@ -169,7 +164,7 @@ mperf_parse_args(struct mperf_test *test, int argc, char **argv)
 					break;
 				}
 				else {
-					LOG_ERROR(NULL, "Bad format specifier %c,"
+					LOG_ERROR("Bad format specifier %c,"
 									" valid formats are in the set [kmgtKMGT]",
 									optarg[0]);
 					return -1;
@@ -179,20 +174,15 @@ mperf_parse_args(struct mperf_test *test, int argc, char **argv)
 				test->verbose = 1;
 				break;
 
-			case 'j':
-				test->json_output = 1;
-				break;
-
 			case 'v':
-				LOG_INFO(stdout, "%s (cJSON %s)\n%s",
-								PACKAGE_STRING, cJSON_Version(),
-								get_system_info());
+				fprintf(stdout, "%s \n%s\n",
+								PACKAGE_STRING, get_system_info());
 				exit(0);
 
 			case 's':
 				test->role_server = 1;
 				if (__parse_ipaddr(&(test->saddr), optarg) < 0) {
-					LOG_ERROR(NULL, "Invalid IP address %s", optarg);
+					LOG_ERROR("Invalid IP address %s", optarg);
 					return -1;
 				}
 				break;
@@ -200,7 +190,7 @@ mperf_parse_args(struct mperf_test *test, int argc, char **argv)
 			case 'c':
 				test->role_client = 1;
 				if (__parse_ipaddr(&(test->saddr), optarg) < 0) {
-					LOG_ERROR(NULL, "Invalid IP address %s", optarg);
+					LOG_ERROR("Invalid IP address %s", optarg);
 					return -1;
 				}
 				break;
@@ -215,7 +205,7 @@ mperf_parse_args(struct mperf_test *test, int argc, char **argv)
 					test->settings.burst = atoi(slash);
 					if (test->settings.burst <= 0 ||
 									test->settings.burst > MAX_BURST) {
-						LOG_ERROR(NULL, "Invalid burst count %s (maximum %u)",
+						LOG_ERROR("Invalid burst count %s (maximum %u)",
 										optarg, MAX_BURST);
 						return -1;
 					}
@@ -228,7 +218,7 @@ mperf_parse_args(struct mperf_test *test, int argc, char **argv)
 			case 't':
 				test->settings.duration = (uint32_t)atoi(optarg);
 				if (test->settings.duration > MAX_TIME) {
-					LOG_ERROR(NULL, "Test duration is too long (maximum = %u sec)",
+					LOG_ERROR("Test duration is too long (maximum = %u sec)",
 									MAX_TIME);
 					return -1;
 				}
@@ -250,7 +240,7 @@ mperf_parse_args(struct mperf_test *test, int argc, char **argv)
 			case 'w':
 				test->settings.window_size = (uint32_t)unit_atolu(optarg);
 				if (test->settings.window_size > MAX_TCP_BUFFER) {
-					LOG_ERROR(NULL, "TCP window size is too big (maximum = %u bytes)",
+					LOG_ERROR("TCP window size is too big (maximum = %u bytes)",
 									MAX_TCP_BUFFER);
 					return -1;
 				}
@@ -259,7 +249,7 @@ mperf_parse_args(struct mperf_test *test, int argc, char **argv)
 			case 'M':
 				test->settings.mss = (uint32_t)unit_atolu(optarg);
 				if (test->settings.mss > MAX_MSS) {
-					LOG_ERROR(NULL, "TCP MSS is too big (maximum = %u bytes)",
+					LOG_ERROR("TCP MSS is too big (maximum = %u bytes)",
 									MAX_MSS);
 					return -1;
 				}
@@ -267,10 +257,6 @@ mperf_parse_args(struct mperf_test *test, int argc, char **argv)
 
 			case 'N':
 				test->no_delay = 1;
-				break;
-
-			case OPT_LOGFILE:
-				test->logfile = strdup(optarg);
 				break;
 
 			case 'h':
@@ -284,20 +270,8 @@ mperf_parse_args(struct mperf_test *test, int argc, char **argv)
 	}
 
 	if (!mtcp_flag) {
-		LOG_ERROR(NULL, "No MTCP configuration file specified.");
+		LOG_ERROR("No MTCP configuration file specified.");
 		return -1;
-	}
-
-	// set logging to a file if specified, othrewise use the default (stdout)
-	if (test->logfile) {
-		test->outfile = fopen(test->logfile, "a+");
-		if (test->outfile == NULL) {
-			LOG_ERROR(NULL, "Failed to open logfile %s", test->logfile);
-			return -1;
-		}
-	}
-	else {
-		test->outfile = stdout;
 	}
 
 	if (blksize == 0)
@@ -314,61 +288,6 @@ mperf_parse_args(struct mperf_test *test, int argc, char **argv)
 	return 0;
 }
 
-int
-mperf_json_start(struct mperf_test *test)
-{
-	test->json_top = cJSON_CreateObject();
-	if (test->json_top == NULL)
-		return -1;
-	test->json_start = cJSON_CreateObject();
-	if (test->json_start == NULL)
-		return -1;
-	cJSON_AddItemToObject(test->json_top, "start", test->json_start);
-	test->json_connected = cJSON_CreateArray();
-	if (test->json_connected == NULL)
-		return -1;
-	cJSON_AddItemToObject(test->json_start, "connected", test->json_connected);
-	test->json_intervals = cJSON_CreateArray();
-	if (test->json_intervals == NULL)
-		return -1;
-	cJSON_AddItemToObject(test->json_top, "intervals", test->json_intervals);
-	test->json_end = cJSON_CreateObject();
-	if (test->json_end == NULL)
-		return -1;
-	cJSON_AddItemToObject(test->json_top, "end", test->json_end);
-	return 0;
-}
-
-int
-mperf_json_finish(struct mperf_test *test)
-{
-	/* Include server output */
-	if (test->json_server_output) {
-		cJSON_AddItemToObject(test->json_top, "server_output_json",
-						test->json_server_output);
-	}
-
-	if (test->server_output_text) {
-		cJSON_AddStringToObject(test->json_top, "server_output_text",
-						test->server_output_text);
-	}
-
-	test->json_output_string = cJSON_Print(test->json_top);
-	if (test->json_output_string == NULL)
-		return -1;
-
-	fprintf(test->outfile, "%s\n", test->json_output_string);
-	fflush(test->outfile);
-	cJSON_Delete(test->json_top);
-	test->json_top = NULL;
-	test->json_start = NULL;
-	test->json_connected = NULL;
-	test->json_intervals = NULL;
-	test->json_server_output = NULL;
-	test->json_end = NULL;
-	return 0;
-}
-
 void
 mperf_set_default(struct mperf_test *test)
 {
@@ -378,5 +297,4 @@ mperf_set_default(struct mperf_test *test)
 	test->settings.duration = DURATION;
 
 	test->sport = PORT;
-	test->outfile = stdout;
 }

@@ -30,13 +30,13 @@ netdial(struct mperf_test *test)
 
 	sockid = mtcp_socket(test->ctx, AF_INET, SOCK_STREAM, 0);
 	if (sockid < 0) {
-		LOG_ERROR(test->outfile, "Failed to create mtcp socket");
+		LOG_ERROR("Failed to create mtcp socket");
 		return -1;
 	}
 
 	ret = mtcp_setsock_nonblock(test->ctx, sockid);
 	if (ret < 0) {
-		LOG_ERROR(test->outfile, "Failed to set socket %d to non-blocking",
+		LOG_ERROR("Failed to set socket %d to non-blocking",
 						sockid);
 		mtcp_close(test->ctx, sockid);
 		return -1;
@@ -50,7 +50,7 @@ netdial(struct mperf_test *test)
 					sizeof(struct sockaddr_in));
 	if (ret < 0) {
 		if (errno != EINPROGRESS) {
-			LOG_ERROR(test->outfile, "Failed to exec mtcp_connect");
+			LOG_ERROR("Failed to exec mtcp_connect");
 			mtcp_close(test->ctx, sockid);
 			return -1;
 		}
