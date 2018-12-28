@@ -95,21 +95,6 @@ struct mperf_test;
 #define LOG_DEBUG(format, ...)
 #endif
 
-/* MTCP wrappers */
-/* close MTCP fd */
-#define mperf_close_mtcp_fd(mctx, fd)	{	\
-	if (fd == -1) {							\
-		mtcp_close(mctx, fd);				\
-		fd = -1;							\
-	}}
-
-/* destroy mtcp context */
-#define mperf_destroy_mctx(mctx)	{	\
-	if (mctx) {							\
-		mtcp_destroy_context(mctx);		\
-		mctx = NULL;					\
-	}}
-
 
 /* Command line rontines */
 void mperf_usage(FILE *f);

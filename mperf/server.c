@@ -17,6 +17,7 @@
 #include "mperf.h"
 #include "mperf_api.h"
 #include "mperf_thread.h"
+#include "mperf_util.h"
 
 int
 mperf_create_listener(struct mperf_test *test)
@@ -75,6 +76,6 @@ mperf_create_listener(struct mperf_test *test)
 	return 0;
 
 close_listener:
-	mperf_close_mtcp_fd(ctx->mctx, listener);
+	close_mtcp_fd(ctx->mctx, listener);
 	return 1;
 }

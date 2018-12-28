@@ -12,6 +12,7 @@
 
 #include "mperf_api.h"
 #include "mperf_thread.h"
+#include "mperf_util.h"
 
 __thread uint8_t thread_id = UINT8_MAX;
 
@@ -58,7 +59,7 @@ mperf_init_worker(uint8_t core) {
 	ctx->epollfd = mtcp_epoll_create(ctx->mctx, EPOLL_EVENT_MAX);
 	if (ctx->epollfd == -1) {
 		LOG_ERROR("Failed to create epollfd for thread %u", thread_id);
-		mperf_destroy_mctx(ctx->mctx);
+		destroy_mctx(ctx->mctx);
 		return NULL;
 	}
 
@@ -105,8 +106,8 @@ __worker_routine(void *arg)
 					ctx->pid, ctx->tid, ctx->core);
 	ctx->routine(ctx->arg);
 
-	mperf_close_mtcp_fd(ctx->mctx, ctx->epollfd);
-	mperf_destroy_mctx(ctx->mctx);
+	close_mtcp_fd(ctx->mctx, ctx->epollfd);
+	destroy_mctx(ctx->mctx);
 
 	pthread_exit(NULL);
 	ctx->state = WORKER_CLOSE;
@@ -184,7 +185,7 @@ mperf_destroy_workers(void)
 		if (ctx->state == WORKER_UNUSED || ctx->state == WORKER_ERROR)
 			continue;
 
-		mperf_close_mtcp_fd(ctx->mctx, ctx->epollfd);
-		mperf_destroy_mctx(ctx->mctx);
+		close_mtcp_fd(ctx->mctx, ctx->epollfd);
+		destroy_mctx(ctx->mctx);
 	}
 }

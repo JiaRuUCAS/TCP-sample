@@ -65,6 +65,7 @@
 #include "mperf_util.h"
 
 #include "units.h"
+#include "cjson.h"
 
 static inline int
 __parse_ipaddr(struct in_addr *ip, const char *ipstr)
@@ -175,8 +176,9 @@ mperf_parse_args(struct mperf_test *test, int argc, char **argv)
 				break;
 
 			case 'v':
-				fprintf(stdout, "%s \n%s\n",
-								PACKAGE_STRING, get_system_info());
+				fprintf(stdout, "%s (cJSON %s)\n%s\n",
+								PACKAGE_STRING, cJSON_Version(),
+								get_system_info());
 				exit(0);
 
 			case 's':
