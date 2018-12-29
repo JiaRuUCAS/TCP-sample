@@ -2,6 +2,7 @@
 #include <stdio.h>
 #include <stdint.h>
 #include <stdlib.h>
+#include <string.h>
 #include <signal.h>
 #include <unistd.h>
 #include <sys/syscall.h>
@@ -10,39 +11,47 @@
 #include <mtcp_api.h>
 #include <mtcp_epoll.h>
 
-#include "mperf_api.h"
-#include "mperf_thread.h"
+#include "mperf_config.h"
+#include "mperf_worker.h"
 #include "mperf_util.h"
 
 __thread uint8_t thread_id = UINT8_MAX;
 
 static uint8_t n_thread;
 
-static struct thread_context threads[THREAD_MAX] = {{
+static struct worker_context threads[THREAD_MAX] = {{
 	.core = UINT8_MAX,
 	.pid = -1,
 	.tid = UINT64_MAX,
 	.mctx = NULL,
 	.epollfd = -1,
-	.state = WORKER_UNUSED,
+	.listenfd = -1,
+	.ctlfd = -1,
+	.worker_state = WORKER_UNUSED,
+	.test_state = TEST_STATE_UNINIT,
 	.done = 0,}
 };
 
-struct thread_context *
+struct worker_context *
 mperf_get_worker(void)
 {
 	return &threads[thread_id - 1];
 }
 
-struct thread_context *
+struct worker_context *
 mperf_init_worker(uint8_t core) {
-	struct thread_context *ctx = NULL;
+	struct worker_context *ctx = NULL;
 
 	thread_id = core + 1;
 	ctx = &threads[core];
 	ctx->core = core;
 	ctx->pid = syscall(SYS_gettid);
 	ctx->tid = pthread_self();
+	ctx->role = global_conf.role;
+
+	// set default connection configuration
+	memcpy(&ctx->conn_conf, &global_conf.conn_conf,
+					sizeof(struct mperf_conn_config));
 
 	// set cpu affinity
 	mtcp_core_affinitize(ctx->core);
@@ -63,27 +72,28 @@ mperf_init_worker(uint8_t core) {
 		return NULL;
 	}
 
-	ctx->state = WORKER_INITED;
+	ctx->worker_state = WORKER_INITED;
 
 	return ctx;
 }
 
 static void __sig_handler(int signo)
 {
-	struct thread_context *ctx = NULL;
+	struct worker_context *ctx = NULL;
 	uint8_t i = 0;
 
 	LOG_DEBUG("recv SIGINT");
 	if (thread_id > 0) {
 		ctx = mperf_get_worker();
 		ctx->done = 1;
-		ctx->state = WORKER_CLOSE;
+		ctx->worker_state = WORKER_CLOSE;
 	}
 	else {
 		for (i = 0; i < n_thread; i++) {
 			ctx = &threads[i];
 
-			if (ctx->state == WORKER_UNINIT || ctx->state == WORKER_INITED)
+			if (ctx->worker_state == WORKER_UNINIT ||
+							ctx->worker_state == WORKER_INITED)
 				pthread_kill(ctx->tid, SIGINT);
 		}
 	}
@@ -93,7 +103,7 @@ static void *
 __worker_routine(void *arg)
 {
 	uint8_t core = (uintptr_t)arg;
-	struct thread_context *ctx = NULL;
+	struct worker_context *ctx = NULL;
 
 	ctx = mperf_init_worker(core);
 	if (!ctx) {
@@ -110,7 +120,7 @@ __worker_routine(void *arg)
 	destroy_mctx(ctx->mctx);
 
 	pthread_exit(NULL);
-	ctx->state = WORKER_CLOSE;
+	ctx->worker_state = WORKER_CLOSE;
 	LOG_DEBUG("Thread closed");
 
 	return NULL;
@@ -120,7 +130,7 @@ int mperf_create_workers(uint8_t n_worker,
 				void (*routine)(void *), void *arg)
 {
 	uint8_t i = 0;
-	struct thread_context *ctx = NULL;
+	struct worker_context *ctx = NULL;
 	pthread_t tid;
 
 	n_thread = n_worker;
@@ -130,7 +140,7 @@ int mperf_create_workers(uint8_t n_worker,
 	for (i = 0; i < n_thread; i++) {
 
 		ctx = &threads[i];
-		ctx->state = WORKER_UNINIT;
+		ctx->worker_state = WORKER_UNINIT;
 		ctx->routine = routine;
 		ctx->arg = arg;
 
@@ -138,7 +148,7 @@ int mperf_create_workers(uint8_t n_worker,
 		if (pthread_create(&tid, NULL,
 								__worker_routine, (void *)(uintptr_t)i)) {
 			LOG_ERROR("Failed to create worker %u", i);
-			ctx->state = WORKER_ERROR;
+			ctx->worker_state = WORKER_ERROR;
 			goto kill_all;
 		}
 		LOG_DEBUG("worker %u tid %lu", i, tid);
@@ -150,7 +160,8 @@ kill_all:
 	for (i = 0; i < n_thread; i++) {
 		ctx = &threads[i];
 
-		if (ctx->state == WORKER_UNINIT || ctx->state == WORKER_INITED) {
+		if (ctx->worker_state == WORKER_UNINIT ||
+						ctx->worker_state == WORKER_INITED) {
 			pthread_kill(ctx->tid, SIGINT);
 		}
 	}
@@ -162,12 +173,13 @@ void
 mperf_wait_workers(void)
 {
 	uint8_t i = 0;
-	struct thread_context *ctx = NULL;
+	struct worker_context *ctx = NULL;
 
 	for (i = 0; i < n_thread; i++) {
 		ctx = &threads[i];
 
-		if (ctx->state == WORKER_UNINIT || ctx->state == WORKER_INITED) {
+		if (ctx->worker_state == WORKER_UNINIT ||
+						ctx->worker_state == WORKER_INITED) {
 			pthread_join(ctx->tid, NULL);
 		}
 	}
@@ -177,14 +189,17 @@ void
 mperf_destroy_workers(void)
 {
 	uint8_t i = 0;
-	struct thread_context *ctx = NULL;
+	struct worker_context *ctx = NULL;
 
 	for (i = 0; i < n_thread; i++) {
 		ctx = &threads[i];
 
-		if (ctx->state == WORKER_UNUSED || ctx->state == WORKER_ERROR)
+		if (ctx->worker_state == WORKER_UNUSED ||
+						ctx->worker_state == WORKER_ERROR)
 			continue;
 
+		close_mtcp_fd(ctx->mctx, ctx->ctlfd);
+		close_mtcp_fd(ctx->mctx, ctx->listenfd);
 		close_mtcp_fd(ctx->mctx, ctx->epollfd);
 		destroy_mctx(ctx->mctx);
 	}

@@ -1,42 +1,36 @@
-/*
- * iperf, Copyright (c) 2014, The Regents of the University of
- * California, through Lawrence Berkeley National Laboratory (subject
- * to receipt of any required approvals from the U.S. Dept. of
- * Energy).  All rights reserved.
- *
- * If you have questions about your rights to use or distribute this
- * software, please contact Berkeley Lab's Technology Transfer
- * Department at TTD@lbl.gov.
- *
- * NOTICE.  This software is owned by the U.S. Department of Energy.
- * As such, the U.S. Government has been granted for itself and others
- * acting on its behalf a paid-up, nonexclusive, irrevocable,
- * worldwide license in the Software to reproduce, prepare derivative
- * works, and perform publicly and display publicly.  Beginning five
- * (5) years after the date permission to assert copyright is obtained
- * from the U.S. Department of Energy, and subject to any subsequent
- * five (5) year renewals, the U.S. Government is granted for itself
- * and others acting on its behalf a paid-up, nonexclusive,
- * irrevocable, worldwide license in the Software to reproduce,
- * prepare derivative works, distribute copies to the public, perform
- * publicly and display publicly, and to permit others to do so.
- *
- * This code is distributed under a BSD style license, see the LICENSE
- * file for complete information.
- */
-
 #ifndef __UNITS_H__
 #define __UNITS_H__
 
-#include "mperf.h"
-
 enum {
-    UNIT_LEN = 32
+	UNIT_BYTE = 0,
+	UNIT_KILO,
+	UNIT_MEGA,
+	UNIT_GIGA,
+	UNIT_TERA,
+	UNIT_MAX,
 };
 
-uint64_t unit_atolu( const char *s );
-uint64_t unit_atou_rate( const char *s );
-//int unit_atoi( const char *s );
-void unit_snprintf( char *s, int inLen, double inNum, char inFormat );
+struct unit {
+	/* Symbol */
+	char symbol;
+	/* Suffix */
+	char *suffix;
+	/* shift bits */
+	uint8_t shift;
+};
+
+uint8_t unit_match(char symbol);
+
+/*
+ * Given a string of form #x where # is an unsigned integer and x is a
+ * format character, this returns the interpreted integer.
+ */
+uint64_t unit_atolu(const char *s);
+
+/*
+ * Given a number in bits and a format, converts the number and prints it
+ * out with a bits label.
+ */
+void unit_snprintf(char *s, int len, uint64_t bits, uint8_t uid);
 
 #endif

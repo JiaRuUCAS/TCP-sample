@@ -1,11 +1,9 @@
-#ifndef __MPERF_H__
-#define __MPERF_H__
+#ifndef __MPERF_CONFIG_H__
+#define __MPERF_CONFIG_H__
 
 #include "../config.h"
 
-#ifdef HAVE_STDINT_H
 #include <stdint.h>
-#endif
 #include <unistd.h>
 #include <sys/time.h>
 #include <sys/types.h>
@@ -16,33 +14,24 @@
 
 /* default settings */
 #define PORT 5210  /* default port to listen on */
-#define uS_TO_NS 1000
-#define SEC_TO_US 1000000LL
-#define UDP_RATE (1024 * 1024) /* 1 Mbps */
-#define OMIT 0 /* seconds */
 #define DURATION 10 /* seconds */
-
-#define SEC_TO_NS 1000000000LL	/* too big for enum/const on some platforms */
-#define MAX_RESULT_STRING 4096
+#define DEFAULT_TCP_BLKSIZE	(131072)
+#define BACKLOG	(4096)
 
 /* constants for command line arg sanity checks */
-#define MB (1024 * 1024)
-#define MAX_TCP_BUFFER (512 * MB)
+#define MB (1048576)
+#define MAX_TCP_BUFFER (MB << 9)
 #define MAX_BLOCKSIZE MB
-#define MAX_UDP_BLOCKSIZE (65535 - 8 - 20)
 #define MIN_INTERVAL 0.1
 #define MAX_INTERVAL 60.0
 #define MAX_TIME 86400
 #define MAX_BURST 1000
-#define MAX_MSS (9 * 1024)
+#define MTU	1500
+#define MAX_MSS (MTU - 40)
 #define MAX_STREAMS 128
 
-struct mperf_textline {
-	char *line;
-	TAILQ_ENTRY(mperf_textline) textlineentries;
-};
-
-struct mperf_settings {
+/* Per-connection configuration */
+struct mperf_conn_config {
 	/* TCP window size */
 	uint32_t window_size;
 	/* size of read/writes (-l) */
@@ -57,46 +46,47 @@ struct mperf_settings {
 	uint32_t bytes;
 	/* number of blocks (packets) to send */
 	uint32_t blocks;
-	/* -f */
-	char unit_format;
 	/* time to send */
 	uint32_t duration;
 };
 
-struct mperf_test {
-	/* MTCP context */
-	mctx_t ctx;
-
-	/* server ip */
+/* Global configuration */
+struct mperf_config {
+	/* server address */
 	struct in_addr saddr;
 	/* server port */
 	uint16_t sport;
 
-	struct mperf_settings settings;
-
-	/* options */
 	/* Flags */
 	union {
 		struct {
 			/* -V option - more detialed output */
 			uint8_t verbose		: 1;
-			/* run server routines */
-			uint8_t role_server	: 1;
-			/* run client routines */
-			uint8_t role_client	: 1;
-			/* -N option - disable Negal algorithm */
-			uint8_t no_delay	: 1;
+			/* Role */
+			uint8_t role		: 1;
+#define ROLE_SERVER	0
+#define ROLE_CLIENT	1
+			/* -f Option. Unit of traffic (see units.h) */
+			uint8_t unit		: 3;
 			/* unused bits */
-			uint8_t unused		: 4;
+			uint8_t unused		: 3;
 		};
 		uint8_t flags;
 	};
 
-	/* file */
-	/* Path to mtcp configuration file */
+	/* MTCP configuration file path */
 	char *mtcp_conf;
+
+	/* Template: connection configuration */
+	struct mperf_conn_config conn_conf;
 };
 
+extern struct mperf_config global_conf;
 
+/* client side: send client's connection configuration to server */
+int mperf_send_conf(struct mperf_conn_config *conf);
 
-#endif /* __MPERF_H__ */
+/* server side: recv and apply client's connection configuration */
+int mperf_recv_conf(struct mperf_conn_config *conf);
+
+#endif /* __MPERF_CONFIG_H__ */

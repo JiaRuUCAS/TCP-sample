@@ -10,10 +10,8 @@
 
 #include <mtcp_api.h>
 
-#include "mperf.h"
-#include "mperf_api.h"
 #include "mperf_util.h"
-#include "mperf_thread.h"
+#include "mperf_worker.h"
 
 const char *
 get_system_info(void)

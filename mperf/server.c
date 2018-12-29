@@ -14,21 +14,21 @@
 #include <mtcp_api.h>
 #include <mtcp_epoll.h>
 
-#include "mperf.h"
 #include "mperf_api.h"
-#include "mperf_thread.h"
+#include "mperf_config.h"
+#include "mperf_worker.h"
 #include "mperf_util.h"
 
 int
-mperf_create_listener(struct mperf_test *test)
+mperf_create_listener(struct mperf_config *global)
 {
-	struct thread_context *ctx = mperf_get_worker();
+	struct worker_context *ctx = mperf_get_worker();
 	struct mtcp_epoll_event ev;
 	struct sockaddr_in saddr;
 	int listener = -1, ret;
 
-	if (ctx == NULL || ctx->state != WORKER_INITED) {
-		LOG_ERROR("Cannot find thread_context");
+	if (ctx == NULL || ctx->worker_state != WORKER_INITED) {
+		LOG_ERROR("Cannot find worker_context");
 		return 1;
 	}
 
@@ -48,8 +48,8 @@ mperf_create_listener(struct mperf_test *test)
 	}
 
 	saddr.sin_family = AF_INET;
-	saddr.sin_port = htons(test->sport);
-	memcpy(&saddr.sin_addr, &test->saddr, sizeof(struct in_addr));
+	saddr.sin_port = htons(global->sport);
+	memcpy(&saddr.sin_addr, &global->saddr, sizeof(struct in_addr));
 
 	ret = mtcp_bind(ctx->mctx, listener, (struct sockaddr *)&saddr,
 					sizeof(struct sockaddr_in));

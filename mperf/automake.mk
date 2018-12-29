@@ -8,7 +8,8 @@ libmperf_a_include_HEADERS =
 libmperf_a_includedir = $(includedir)/mperf
 libmperf_a_SOURCES =  mperf/cjson.c			\
 					  mperf/mperf_api.c		\
-					  mperf/mperf_thread.c	\
+					  mperf/mperf_config.c	\
+					  mperf/mperf_worker.c	\
 					  mperf/mperf_util.c	\
 					  mperf/units.c			\
 					  mperf/server.c		\

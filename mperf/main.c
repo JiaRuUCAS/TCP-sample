@@ -17,18 +17,19 @@
 
 #include <mtcp_api.h>
 
-#include "mperf.h"
+#include "mperf_util.h"
+#include "mperf_config.h"
 #include "mperf_api.h"
-#include "mperf_thread.h"
+#include "mperf_worker.h"
 
 static void
 __worker_thread(void *arg)
 {
-	struct thread_context *ctx = NULL;
+	struct worker_context *ctx = NULL;
 
 	ctx = mperf_get_worker();
 
-	LOG_DEBUG("Enter __worker_thread loop");
+	LOG_DEBUG("Enter __worker_thread loop, role %u", ctx->role);
 
 	while (!ctx->done) {
 		// TODO
@@ -40,7 +41,6 @@ __worker_thread(void *arg)
 
 int main(int argc, char **argv)
 {
-	struct mperf_test *test = NULL;
 	struct mtcp_conf mtcp_cfg;
 	uint8_t n_worker = 0;
 	int ret = 0;
@@ -48,31 +48,21 @@ int main(int argc, char **argv)
 	// init master thread info
 	thread_id = 0;
 
-	test = (struct mperf_test *)malloc(sizeof(struct mperf_test));
-	if (test == NULL) {
-		LOG_ERROR("Failed to allocate memory for mperf_test");
-		return 1;
-	}
-	memset(test, 0, sizeof(struct mperf_test));
-
-	mperf_set_default(test);
-
-	ret = mperf_parse_args(test, argc, argv);
+	ret = mperf_parse_args(argc, argv);
 	if (ret) {
 		if (ret < 0) {
 			mperf_usage(stdout);
 			LOG_ERROR("Invalid parameters");
 		}
 		ret = 1;
-		goto free_test;
+		return 1;
 	}
 
 	LOG_DEBUG("init mtcp");
-	ret = mtcp_init(test->mtcp_conf);
+	ret = mtcp_init(global_conf.mtcp_conf);
 	if (ret) {
 		LOG_ERROR("Failed to init mtcp");
-		ret = 1;
-		goto free_test;
+		return 1;
 	}
 
 	mtcp_getconf(&mtcp_cfg);
@@ -101,9 +91,6 @@ exit:
 
 	mtcp_destroy();
 	LOG_DEBUG("MTCP destroyed");
-
-free_test:
-	free(test);
 
 	return ret;
 }
