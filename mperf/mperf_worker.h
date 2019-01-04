@@ -1,6 +1,7 @@
 #ifndef __MPERF_WORKER_H__
 #define __MPERF_WORKER_H__
 
+#define _GNU_SOURCE
 #include <pthread.h>
 #include <mtcp_api.h>
 
@@ -11,7 +12,23 @@
 enum {
 	TEST_STATE_UNINIT = 0,
 	TEST_STATE_CREATE_STREAM,
-	TEST_STATE_DONE,
+	TEST_STATE_START,
+	TEST_STATE_RUNNING,
+	TEST_STATE_END,
+	TEST_STATE_PARAM_EXCHANGE,
+	TEST_STATE_ACCESS_DENY,
+};
+
+struct server_context {
+	/* Socket: listener */
+	int listenfd;
+	/* Socket: controller */
+	int ctlfd;
+};
+
+struct client_context {
+	// TODO
+	int unused;
 };
 
 struct worker_context {
@@ -29,8 +46,6 @@ struct worker_context {
 	/* epoll fd */
 	int epollfd;
 #define EPOLL_EVENT_MAX	1000
-	/* Socket: listener fd */
-	int listenfd;
 	/* Socket: controller */
 	int ctlfd;
 
@@ -48,6 +63,14 @@ struct worker_context {
 	/* user-specified thread routine */
 	void (*routine)(void *);
 	void *arg;
+
+	/* Server or client context
+	 * (One worker can only act as server or client)
+	 */
+	union {
+		struct server_context server;
+		struct client_context client;
+	};
 };
 
 extern __thread uint8_t thread_id;

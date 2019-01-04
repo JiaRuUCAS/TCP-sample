@@ -1,4 +1,3 @@
-#define _GNU_SOURCE
 #include <stdio.h>
 #include <stdint.h>
 #include <stdlib.h>
@@ -25,8 +24,6 @@ static struct worker_context threads[THREAD_MAX] = {{
 	.tid = UINT64_MAX,
 	.mctx = NULL,
 	.epollfd = -1,
-	.listenfd = -1,
-	.ctlfd = -1,
 	.worker_state = WORKER_UNUSED,
 	.test_state = TEST_STATE_UNINIT,
 	.done = 0,}
@@ -198,8 +195,6 @@ mperf_destroy_workers(void)
 						ctx->worker_state == WORKER_ERROR)
 			continue;
 
-		close_mtcp_fd(ctx->mctx, ctx->ctlfd);
-		close_mtcp_fd(ctx->mctx, ctx->listenfd);
 		close_mtcp_fd(ctx->mctx, ctx->epollfd);
 		destroy_mctx(ctx->mctx);
 	}

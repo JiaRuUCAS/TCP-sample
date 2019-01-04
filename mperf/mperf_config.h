@@ -32,16 +32,14 @@
 
 /* Per-connection configuration */
 struct mperf_conn_config {
-	/* TCP window size */
-	uint32_t window_size;
 	/* size of read/writes (-l) */
 	uint32_t blksize;
 	/* target data rate */
 	uint64_t rate;
 	/* packet burst size */
 	uint32_t burst;
-	/* TCP MSS */
-	uint32_t mss;
+//	/* TCP MSS */
+//	uint32_t mss;
 	/* number of bytes to send */
 	uint32_t bytes;
 	/* number of blocks (packets) to send */
@@ -56,6 +54,8 @@ struct mperf_config {
 	struct in_addr saddr;
 	/* server port */
 	uint16_t sport;
+//	/* TCP window size */
+//	uint32_t window_size;
 
 	/* Flags */
 	union {

@@ -16,11 +16,11 @@ struct mperf_config global_conf = {
 	.flags = 0,
 	.mtcp_conf = NULL,
 	.conn_conf = {
-		.window_size = 0,
+//		.window_size = 0,
 		.blksize = DEFAULT_TCP_BLKSIZE,
 		.rate = 0,
 		.burst = 0,
-		.mss = 0,
+//		.mss = 0,
 		.bytes = 0,
 		.blocks = 0,
 		.duration = DURATION,
@@ -98,6 +98,12 @@ mperf_send_conf(struct mperf_conn_config *conf)
 {
 	int ret = 0;
 	cJSON *json = NULL;
+	struct worker_context *ctx = mperf_get_worker();
+
+	if (ctx->role != ROLE_CLIENT) {
+		LOG_ERROR("mperf_send_conf() can only be called by client side");
+		return -1;
+	}
 
 	json = cJSON_CreateObject();
 	if (json == NULL) {
@@ -106,8 +112,8 @@ mperf_send_conf(struct mperf_conn_config *conf)
 	}
 
 	cJSON_AddNumberToObject(json, "duration", conf->duration);
-	if (conf->window_size)
-		cJSON_AddNumberToObject(json, "window", conf->window_size);
+//	if (conf->window_size)
+//		cJSON_AddNumberToObject(json, "window", conf->window_size);
 	if (conf->blksize)
 		cJSON_AddNumberToObject(json, "blksize", conf->blksize);
 	if (conf->rate)
@@ -118,14 +124,14 @@ mperf_send_conf(struct mperf_conn_config *conf)
 		cJSON_AddNumberToObject(json, "bytes", conf->bytes);
 	if (conf->blocks)
 		cJSON_AddNumberToObject(json, "blocks", conf->blocks);
-	if (conf->mss)
-		cJSON_AddNumberToObject(json, "mss", conf->mss);
+//	if (conf->mss)
+//		cJSON_AddNumberToObject(json, "mss", conf->mss);
 	cJSON_AddStringToObject(json, "client_version", PACKAGE_STRING);
 
 	LOG_DEBUG("Send params:");
 	LOG_DEBUG("\t%s", cJSON_Print(json));
 
-	if (JSON_write(mperf_get_worker()->ctlfd, json) < 0) {
+	if (JSON_write(ctx->ctlfd, json) < 0) {
 		LOG_ERROR("Failed to write params to ctlfd");
 		ret = -1;
 	}
@@ -141,6 +147,11 @@ mperf_recv_conf(struct mperf_conn_config *conf)
 	cJSON *json = NULL, *item = NULL;
 	struct worker_context *ctx = mperf_get_worker();
 
+	if (ctx->role != ROLE_SERVER) {
+		LOG_ERROR("mperf_recv_conf() can only be called by server side");
+		return -1;
+	}
+
 	json = JSON_read(ctx->ctlfd);
 	if (json == NULL) {
 		LOG_ERROR("Failed to recv JSON string from client");
@@ -152,8 +163,8 @@ mperf_recv_conf(struct mperf_conn_config *conf)
 
 	if ((item = cJSON_GetObjectItem(json, "duration")) != NULL)
 		conf->duration = item->valueint;
-	if ((item = cJSON_GetObjectItem(json, "window")) != NULL)
-		conf->window_size = item->valueint;
+//	if ((item = cJSON_GetObjectItem(json, "window")) != NULL)
+//		conf->window_size = item->valueint;
 	if ((item = cJSON_GetObjectItem(json, "blksize")) != NULL)
 		conf->blksize = item->valueint;
 	if ((item = cJSON_GetObjectItem(json, "rate")) != NULL)
@@ -164,8 +175,8 @@ mperf_recv_conf(struct mperf_conn_config *conf)
 		conf->bytes = item->valueint;
 	if ((item = cJSON_GetObjectItem(json, "blocks")) != NULL)
 		conf->blocks = item->valueint;
-	if ((item = cJSON_GetObjectItem(json, "mss")) != NULL)
-		conf->mss = item->valueint;
+//	if ((item = cJSON_GetObjectItem(json, "mss")) != NULL)
+//		conf->mss = item->valueint;
 
 	if ((item = cJSON_GetObjectItem(json, "client_version")) != NULL) {
 		if (memcmp(item->valuestring, PACKAGE_STRING,

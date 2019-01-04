@@ -86,6 +86,7 @@ mperf_usage(FILE *f)
 			"  -m, --mtcp-conf	<file>		MTCP configuration file\n"
 			"  -p, --port		#			server port to listen on/connect to\n"
 			"  -f, --format		[kmgtKMGT]	format to report: Kbits, Mbits, Gbits, Tbits\n"
+//			"  -w, --window		#[KMG]		set window size / socket buffer size\n"
 			"  -V, --verbose				more detailed output\n"
 			"  -v, --version				show version information and quit\n"
 			"  -h, --help					show this message and quit\n"
@@ -100,9 +101,8 @@ mperf_usage(FILE *f)
 			"  -n, --bytes		#[KMG]		number of bytes to transmit (instead of -t)\n"
 			"  -k, --blockcount #[KMG]		number of blocks (packets) to transmit (instead of -t or -n)\n"
 			"  -l, --length		#[KMG]		length of buffer to read or write\n"
-			"								(default %d KB for TCP)\n"
-			"  -w, --window		#[KMG]		set window size / socket buffer size\n"
-			"  -M, --set-mss	#			set TCP maximum segment size (MTU - 40 bytes)\n",
+			"								(default %d KB for TCP)\n",
+//			"  -M, --set-mss	#			set TCP maximum segment size (MTU - 40 bytes)\n",
 			MAX_TIME, DEFAULT_TCP_BLKSIZE);
 }
 
@@ -122,8 +122,8 @@ mperf_parse_args(int argc, char **argv)
 		{"bytes", required_argument, NULL, 'n'},
 		{"blockcount", required_argument, NULL, 'k'},
 		{"length", required_argument, NULL, 'l'},
-		{"window", required_argument, NULL, 'w'},
-		{"set-mss", required_argument, NULL, 'M'},
+//		{"window", required_argument, NULL, 'w'},
+//		{"set-mss", required_argument, NULL, 'M'},
 		{"help", no_argument, NULL, 'h'},
 		{NULL, 0, NULL, 0}
 	};
@@ -133,7 +133,7 @@ mperf_parse_args(int argc, char **argv)
 	uint8_t duration_flag = 0, mtcp_flag = 0, unit;
 	struct mperf_config *conf = &global_conf;
 
-	while ((flag = getopt_long(argc, argv, "m:p:f:Vvs:c:b:t:n:k:l:w:M:h",
+	while ((flag = getopt_long(argc, argv, "m:p:f:Vvs:c:b:t:n:k:l:h",
 									longopts, NULL)) != -1) {
 		switch (flag) {
 			case 'm':
@@ -229,23 +229,23 @@ mperf_parse_args(int argc, char **argv)
 				blksize = (uint32_t)unit_atolu(optarg);
 				break;
 
-			case 'w':
-				conf->conn_conf.window_size = (uint32_t)unit_atolu(optarg);
-				if (conf->conn_conf.window_size > MAX_TCP_BUFFER) {
-					LOG_ERROR("TCP window size is too big (maximum = %u bytes)",
-									MAX_TCP_BUFFER);
-					return -1;
-				}
-				break;
-
-			case 'M':
-				conf->conn_conf.mss = (uint32_t)unit_atolu(optarg);
-				if (conf->conn_conf.mss > MAX_MSS) {
-					LOG_ERROR("TCP MSS is too big (maximum = %u bytes)",
-									MAX_MSS);
-					return -1;
-				}
-				break;
+//			case 'w':
+//				conf->window_size = (uint32_t)unit_atolu(optarg);
+//				if (conf->window_size > MAX_TCP_BUFFER) {
+//					LOG_ERROR("TCP window size is too big (maximum = %u bytes)",
+//									MAX_TCP_BUFFER);
+//					return -1;
+//				}
+//				break;
+//
+//			case 'M':
+//				conf->conn_conf.mss = (uint32_t)unit_atolu(optarg);
+//				if (conf->conn_conf.mss > MAX_MSS) {
+//					LOG_ERROR("TCP MSS is too big (maximum = %u bytes)",
+//									MAX_MSS);
+//					return -1;
+//				}
+//				break;
 
 			case 'h':
 				mperf_usage(stdout);
@@ -284,7 +284,7 @@ mperf_set_test_state(uint8_t state)
 
 	ctx->test_state = state;
 
-	if (nwrite(ctx->ctlfd, (char *)&state, sizeof(state)) < 0) {
+	if (nwrite(ctx->ctlfd, (char *)&state, sizeof(uint8_t)) < 0) {
 		LOG_ERROR("Failed write state %u to ctl sock", state);
 		return -1;
 	}
