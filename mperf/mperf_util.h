@@ -25,7 +25,7 @@
 /* MTCP wrappers */
 /* close MTCP fd */
 #define close_mtcp_fd(mctx, fd)	{			\
-	if (fd == -1) {							\
+	if (fd != -1) {							\
 		mtcp_close(mctx, fd);				\
 		fd = -1;							\
 	}}

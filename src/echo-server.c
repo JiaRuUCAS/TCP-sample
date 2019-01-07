@@ -103,6 +103,7 @@ int main(int argc, char **argv)
 
 		for (i = 0; i < nb_fd; i++) {
 			if (events[i].data.fd == listenfd) {
+				fprintf(stdout, "listenfd EPOLLIN\n");
 				cli_len = sizeof(cli_addr);
 				while ((connfd = accept(listenfd, (struct sockaddr *)&cli_addr,
 												&cli_len)) > 0) {

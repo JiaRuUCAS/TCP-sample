@@ -106,7 +106,7 @@ mperf_accept(struct worker_context *ctx)
 
 		// add controller to epoll list
 		memset(&ev, 0, sizeof(struct mtcp_epoll_event));
-		ev.events = MTCP_EPOLLIN;
+		ev.events = MTCP_EPOLLIN | MTCP_EPOLLET;
 		ev.data.sockid = sock;
 		mtcp_epoll_ctl(ctx->mctx, ctx->epollfd, MTCP_EPOLL_CTL_ADD, sock, &ev);
 
@@ -120,13 +120,15 @@ mperf_accept(struct worker_context *ctx)
 		server->cli_ctl_port = ntohs(caddr.sin_port);
 		memcpy(&(server->cli_ip), &caddr.sin_addr, sizeof(struct in_addr));
 
-		LOG_INFO("Controller established for client %s:%u",
-						inet_ntoa(server->cli_ip), server->cli_ctl_port);
+		LOG_INFO("Controller(%d) established for client %s:%u",
+						ctx->ctlfd, inet_ntoa(server->cli_ip), server->cli_ctl_port);
 		return 0;
 	}
 	/* If it's in the CREATE_STREAM stage, accept data connection */
 	else if (ctx->test_state == TEST_STATE_CREATE_STREAM && ctx->datafd == -1) {
 		// check client ip
+		LOG_DEBUG("client ip %s, recv ip %s",
+						inet_ntoa(server->cli_ip), inet_ntoa(caddr.sin_addr));
 		if (memcmp(&(server->cli_ip), &caddr.sin_addr, sizeof(struct in_addr)) != 0) {
 			goto access_deny;
 		}
@@ -136,7 +138,7 @@ mperf_accept(struct worker_context *ctx)
 
 		// add controller to epoll list
 		memset(&ev, 0, sizeof(struct mtcp_epoll_event));
-		ev.events = MTCP_EPOLLIN;
+		ev.events = MTCP_EPOLLIN | MTCP_EPOLLET;
 		ev.data.sockid = sock;
 		mtcp_epoll_ctl(ctx->mctx, ctx->epollfd, MTCP_EPOLL_CTL_ADD, sock, &ev);
 
@@ -152,8 +154,8 @@ mperf_accept(struct worker_context *ctx)
 		ctx->datafd = sock;
 		server->cli_data_port = ntohs(caddr.sin_port);
 
-		LOG_INFO("Data connection established for client %s:%u",
-						inet_ntoa(server->cli_ip), server->cli_data_port);
+		LOG_INFO("Data connection(%d) established for client %s:%u",
+						ctx->datafd, inet_ntoa(server->cli_ip), server->cli_data_port);
 		return 0;
 
 	}
@@ -163,6 +165,9 @@ access_deny:
 		LOG_ERROR("Failed to send ACCESS_DENY to client %s:%u, err %d (%s)",
 						inet_ntoa(caddr.sin_addr), ntohs(caddr.sin_port),
 						errno, strerror(errno));
+	} else {
+		LOG_INFO("Deny access from client %s:%u",
+						inet_ntoa(caddr.sin_addr), ntohs(caddr.sin_port));
 	}
 	close_mtcp_fd(ctx->mctx, sock);
 
@@ -177,7 +182,8 @@ mperf_handle_server_msg(struct worker_context *ctx)
 
 	ret = nread(ctx->ctlfd, (char *)&state, sizeof(uint8_t));
 	if (ret == 0) {
-		LOG_ERROR("The client has unexpectedly closed the connection");
+		LOG_ERROR("The client has unexpectedly closed the connection,"
+						" current state %u", ctx->test_state);
 		ctx->test_state = TEST_STATE_END;
 		return 0;
 	}
@@ -252,6 +258,8 @@ mperf_destroy_server(struct worker_context *ctx)
 	ctx->server.cli_ctl_port = 0;
 	ctx->server.cli_data_port = 0;
 
+	LOG_DEBUG("Clear server");
+
 	close_mtcp_fd(ctx->mctx, ctx->datafd);
 	close_mtcp_fd(ctx->mctx, ctx->ctlfd);
 	close_mtcp_fd(ctx->mctx, ctx->server.listenfd);
@@ -299,6 +307,7 @@ mperf_server_loop(void)
 
 			/* if the event is for the listener, new connection arrived. */
 			if (pev->data.sockid == server->listenfd) {
+				LOG_DEBUG("listenfd EPOLLIN");
 				if (mperf_accept(ctx) < 0) {
 					LOG_ERROR("mperf_accept() failed, err %d (%s)",
 									errno, strerror(errno));
@@ -308,6 +317,8 @@ mperf_server_loop(void)
 			}
 			/* if the event is for the controller, we receive a new state */
 			else if (pev->data.sockid == ctx->ctlfd) {
+				LOG_DEBUG("ctlfd EPOLLIN");
+
 				ret = mperf_handle_server_msg(ctx);
 
 				if (ret < 0) {
@@ -319,6 +330,7 @@ mperf_server_loop(void)
 			}
 			/* if the event is for the data connection, receive data */
 			else if (pev->data.sockid == ctx->datafd) {
+				LOG_DEBUG("datafd EPOLLIN");
 				//TODO recv data
 			}
 		}

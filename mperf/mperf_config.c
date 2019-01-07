@@ -72,24 +72,33 @@ static int
 JSON_write(int fd, cJSON *json)
 {
 	uint32_t hsize, nsize;
-	char *str;
-	int r = 0;
+	char *str = NULL;
+	uint8_t state = TEST_STATE_PARAM_EXCHANGE;
 
 	str = cJSON_PrintUnformatted(json);
-	if (str == NULL)
-		r = -1;
-	else {
+	if (str != NULL) {
 		hsize = strlen(str);
 		nsize = htonl(hsize);
-		if (nwrite(fd, (char*) &nsize, sizeof(nsize)) < 0)
-			r = -1;
-		else {
-			if (nwrite(fd, str, hsize) < 0)
-				r = -1;
-		}
+
+		// send state (message type)
+		if (nwrite(fd, (char *)&state, sizeof(uint8_t)) < 0)
+			goto free_str;
+
+		// send length of JSON string
+		if (nwrite(fd, (char *)&nsize, sizeof(nsize)) < 0)
+			goto free_str;
+
+		// send JSON string
+		if (nwrite(fd, str, hsize) < 0)
+			goto free_str;
+
 		free(str);
+		return 0;
     }
-    return r;
+
+free_str:
+	free(str);
+    return -1;
 }
 
 /* client side: send client's connection configuration to server */
