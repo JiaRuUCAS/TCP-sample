@@ -6,7 +6,8 @@ libmperf_a_CFLAGS = $(AM_CFLAGS)
 libmperf_a_CPPFLAGS = $(AM_CPPFLAGS)
 libmperf_a_include_HEADERS =
 libmperf_a_includedir = $(includedir)/mperf
-libmperf_a_SOURCES =  mperf/cjson.c			\
+libmperf_a_SOURCES =  mperf/client.c		\
+					  mperf/cjson.c			\
 					  mperf/mperf_api.c		\
 					  mperf/mperf_config.c	\
 					  mperf/mperf_worker.c	\

@@ -26,17 +26,16 @@ static void
 __worker_thread(void *arg)
 {
 	struct worker_context *ctx = NULL;
-	int ret = 0;
 
 	ctx = mperf_get_worker();
 
 	LOG_DEBUG("Enter __worker_thread loop, role %u", ctx->role);
 
 	if (ctx->role == ROLE_SERVER) {
-		ret = mperf_server_loop();
-		if (ret < 0)
-			LOG_ERROR("Server loop exits with error, ret %d", ret);
+		mperf_server_loop();
 	}
+	else
+		mperf_client_loop();
 
 	LOG_DEBUG("Exit __worker_thread loop");
 }

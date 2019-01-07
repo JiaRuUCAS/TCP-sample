@@ -17,13 +17,18 @@ enum {
 	TEST_STATE_END,
 	TEST_STATE_PARAM_EXCHANGE,
 	TEST_STATE_ACCESS_DENY,
+	TEST_STATE_ERROR,
 };
 
 struct server_context {
 	/* Socket: listener */
 	int listenfd;
-	/* Socket: controller */
-	int ctlfd;
+	/* client IP address */
+	struct in_addr cli_ip;
+	/* client controller port */
+	uint16_t cli_ctl_port;
+	/* client data port */
+	uint16_t cli_data_port;
 };
 
 struct client_context {
@@ -48,6 +53,8 @@ struct worker_context {
 #define EPOLL_EVENT_MAX	1000
 	/* Socket: controller */
 	int ctlfd;
+	/* Socket: data connection */
+	int datafd;
 
 	/* state of the worker */
 	uint8_t worker_state;

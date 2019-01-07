@@ -1,11 +1,9 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <getopt.h>
 #include <errno.h>
 #include <unistd.h>
 #include <assert.h>
-#include <fcntl.h>
 #include <sys/socket.h>
 #include <sys/types.h>
 #include <netinet/in.h>
@@ -87,6 +85,8 @@ mperf_accept(struct worker_context *ctx)
 	struct sockaddr_in caddr;
 	socklen_t clen;
 	int sock = -1;
+	uint8_t deny = TEST_STATE_ACCESS_DENY;
+	struct mtcp_epoll_event ev;
 
 	clen = sizeof(struct sockaddr_in);
 	sock = mtcp_accept(ctx->mctx, server->listenfd,
@@ -97,21 +97,9 @@ mperf_accept(struct worker_context *ctx)
 		return -1;
 	}
 
-	/* there is already one client, deny the new one. Send ACCESS_DENY */
-	if (ctx->ctlfd != -1) {
-		uint8_t deny = TEST_STATE_ACCESS_DENY;
-
-		if (nwrite(sock, (char *)&deny, sizeof(uint8_t)) < 0) {
-			LOG_ERROR("Failed to send ACCESS_DENY to client %s:%u, err %d (%s)",
-							inet_ntoa(caddr.sin_addr), ntohs(caddr.sin_port),
-							errno, strerror(errno));
-		}
-		close_mtcp_fd(ctx->mctx, sock);
-		return -1;
-	}
-	/* server is free, accept new client */
-	else {
-		struct mtcp_epoll_event ev;
+	/* server is free, accept new client's control connection */
+	if (ctx->ctlfd == -1) {
+		ctx->ctlfd = sock;
 
 		// set non-blocking mode
 		mtcp_setsock_nonblock(ctx->mctx, sock);
@@ -125,14 +113,60 @@ mperf_accept(struct worker_context *ctx)
 		// set local state and send to the client to start parameter exchange
 		if (mperf_set_test_state(TEST_STATE_PARAM_EXCHANGE) < 0) {
 			mtcp_epoll_ctl(ctx->mctx, ctx->epollfd, MTCP_EPOLL_CTL_DEL, sock, NULL);
+			mtcp_close(ctx->mctx, ctx->ctlfd);
+			return -1;
+		}
+
+		server->cli_ctl_port = ntohs(caddr.sin_port);
+		memcpy(&(server->cli_ip), &caddr.sin_addr, sizeof(struct in_addr));
+
+		LOG_INFO("Controller established for client %s:%u",
+						inet_ntoa(server->cli_ip), server->cli_ctl_port);
+		return 0;
+	}
+	/* If it's in the CREATE_STREAM stage, accept data connection */
+	else if (ctx->test_state == TEST_STATE_CREATE_STREAM && ctx->datafd == -1) {
+		// check client ip
+		if (memcmp(&(server->cli_ip), &caddr.sin_addr, sizeof(struct in_addr)) != 0) {
+			goto access_deny;
+		}
+
+ 		// set non-blocking mode
+		mtcp_setsock_nonblock(ctx->mctx, sock);
+
+		// add controller to epoll list
+		memset(&ev, 0, sizeof(struct mtcp_epoll_event));
+		ev.events = MTCP_EPOLLIN;
+		ev.data.sockid = sock;
+		mtcp_epoll_ctl(ctx->mctx, ctx->epollfd, MTCP_EPOLL_CTL_ADD, sock, &ev);
+
+		// TODO init test
+
+		// set local state and send to the client to start parameter exchange
+		if (mperf_set_test_state(TEST_STATE_RUNNING) < 0) {
+			mtcp_epoll_ctl(ctx->mctx, ctx->epollfd, MTCP_EPOLL_CTL_DEL, sock, NULL);
 			mtcp_close(ctx->mctx, sock);
 			return -1;
 		}
 
-		ctx->ctlfd = sock;
+		ctx->datafd = sock;
+		server->cli_data_port = ntohs(caddr.sin_port);
+
+		LOG_INFO("Data connection established for client %s:%u",
+						inet_ntoa(server->cli_ip), server->cli_data_port);
+		return 0;
+
 	}
 
-	return 0;
+access_deny:
+	if (nwrite(sock, (char *)&deny, sizeof(uint8_t)) < 0) {
+		LOG_ERROR("Failed to send ACCESS_DENY to client %s:%u, err %d (%s)",
+						inet_ntoa(caddr.sin_addr), ntohs(caddr.sin_port),
+						errno, strerror(errno));
+	}
+	close_mtcp_fd(ctx->mctx, sock);
+
+	return -1;
 }
 
 int
@@ -160,12 +194,34 @@ mperf_handle_server_msg(struct worker_context *ctx)
 				ret = mperf_recv_conf(&ctx->conn_conf);
 				if (ret < 0) {
 					LOG_ERROR("Failed to read config from client");
-					ctx->test_state = TEST_STATE_END;
+					mperf_set_test_state(TEST_STATE_ERROR);
 					return -1;
 				}
-				break;
+
+				// set and send TEST_STATE_CREATE_STREAM
+				ret = mperf_set_test_state(TEST_STATE_CREATE_STREAM);
+				if (ret < 0) {
+					LOG_ERROR("Failed to send CREATE_STREAM");
+					ctx->test_state = TEST_STATE_ERROR;
+					return -1;
+				}
+			}
+			else {
+				LOG_ERROR("Wrong state %u when receiving PARAM_EXCHANGE",
+								ctx->test_state);
+				mperf_set_test_state(TEST_STATE_ERROR);
+				return -1;
 			}
 			break;
+
+		case TEST_STATE_ERROR:
+			ctx->test_state = TEST_STATE_ERROR;
+			return 1;
+
+		case TEST_STATE_END:
+			ctx->test_state = TEST_STATE_END;
+			return 1;
+
 		default:
 			LOG_ERROR("Unknown state %u", state);
 			return -1;
@@ -177,13 +233,26 @@ mperf_handle_server_msg(struct worker_context *ctx)
 void
 mperf_init_server(struct worker_context *ctx)
 {
+	memset(&ctx->conn_conf, 0, sizeof(struct mperf_conn_config));
+	ctx->conn_conf.blksize = DEFAULT_TCP_BLKSIZE;
+	ctx->conn_conf.duration = DURATION;
+
 	ctx->server.listenfd = -1;
+	ctx->server.cli_ip.s_addr = 0;
+	ctx->server.cli_ctl_port = 0;
+	ctx->server.cli_data_port = 0;
 	ctx->ctlfd = -1;
+	ctx->datafd = -1;
 }
 
 void
 mperf_destroy_server(struct worker_context *ctx)
 {
+	ctx->server.cli_ip.s_addr = 0;
+	ctx->server.cli_ctl_port = 0;
+	ctx->server.cli_data_port = 0;
+
+	close_mtcp_fd(ctx->mctx, ctx->datafd);
 	close_mtcp_fd(ctx->mctx, ctx->ctlfd);
 	close_mtcp_fd(ctx->mctx, ctx->server.listenfd);
 }
@@ -230,40 +299,47 @@ mperf_server_loop(void)
 
 			/* if the event is for the listener, new connection arrived. */
 			if (pev->data.sockid == server->listenfd) {
-//				if (ctx->test_state == TEST_STATE_START) {
 				if (mperf_accept(ctx) < 0) {
 					LOG_ERROR("mperf_accept() failed, err %d (%s)",
 									errno, strerror(errno));
 					ret = -1;
 					break;
 				}
-//				}
 			}
 			/* if the event is for the controller, we receive a new state */
 			else if (pev->data.sockid == ctx->ctlfd) {
-				if (mperf_handle_server_msg(ctx) < 0) {
+				ret = mperf_handle_server_msg(ctx);
+
+				if (ret < 0) {
 					LOG_ERROR("Failed to handle message");
 					break;
 				}
+				else if (ret > 0)
+					break;
 			}
-
-			/* if current state is TEST_STATE_CREATE_STREAM, we are in the
-			 * processing of creating data connection */
-			if (ctx->test_state == TEST_STATE_CREATE_STREAM) {
-				// TODO
-			}
-
-			/* if current state is TEST_STATE_RUNNING, receiving data */
-			if (ctx->test_state == TEST_STATE_RUNNING) {
-				// TODO
+			/* if the event is for the data connection, receive data */
+			else if (pev->data.sockid == ctx->datafd) {
+				//TODO recv data
 			}
 		}
 
-		if (ctx->test_state == TEST_STATE_END) {
-			// TODO: end current test
+		if (ctx->test_state == TEST_STATE_END ||
+						ctx->test_state == TEST_STATE_ERROR) {
+			if (ctx->test_state == TEST_STATE_END) {
+				LOG_INFO("Test (client %s:%u) finished",
+								inet_ntoa(server->cli_ip), server->cli_data_port);
+			}
+			else {
+				LOG_ERROR("Test (client %s:%u) failed",
+								inet_ntoa(server->cli_ip), server->cli_data_port);
+			}
+
+			// TODO stop statistics and print summary
+			break;
 		}
 	}
 
+	ctx->done = 1;
 	mperf_destroy_server(ctx);
 	return ret;
 }

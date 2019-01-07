@@ -46,10 +46,6 @@ mperf_init_worker(uint8_t core) {
 	ctx->tid = pthread_self();
 	ctx->role = global_conf.role;
 
-	// set default connection configuration
-	memcpy(&ctx->conn_conf, &global_conf.conn_conf,
-					sizeof(struct mperf_conn_config));
-
 	// set cpu affinity
 	mtcp_core_affinitize(ctx->core);
 

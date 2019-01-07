@@ -285,7 +285,8 @@ mperf_set_test_state(uint8_t state)
 	ctx->test_state = state;
 
 	if (nwrite(ctx->ctlfd, (char *)&state, sizeof(uint8_t)) < 0) {
-		LOG_ERROR("Failed write state %u to ctl sock", state);
+		LOG_ERROR("Failed write state %u to ctl sock %d",
+						state, ctx->ctlfd);
 		return -1;
 	}
 	return 0;
