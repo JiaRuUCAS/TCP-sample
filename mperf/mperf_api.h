@@ -45,7 +45,7 @@ int mperf_connect(struct worker_context *ctx,
 /* handle controlling message */
 int mperf_handle_client_msg(struct worker_context *ctx);
 /* init client context */
-void mperf_init_client(struct worker_context *ctx);
+int mperf_init_client(struct worker_context *ctx);
 /* destry client context */
 void mperf_destroy_client(struct worker_context *ctx);
 

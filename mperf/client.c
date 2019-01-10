@@ -9,6 +9,9 @@
 #include <netinet/in.h>
 #include <arpa/inet.h>
 
+#include <rte_malloc.h>
+#include <rte_random.h>
+
 #include <mtcp_api.h>
 #include <mtcp_epoll.h>
 
@@ -48,18 +51,21 @@ mperf_connect(struct worker_context *ctx, struct mperf_config *global,
 		return -1;
 	}
 
-	ev.events = MTCP_EPOLLIN;
-	ev.data.sockid = sock;
-	mtcp_epoll_ctl(ctx->mctx, ctx->epollfd, MTCP_EPOLL_CTL_ADD, sock, &ev);
-
 	// establish control connection
 	if (is_ctl) {
+		ev.events = MTCP_EPOLLIN | MTCP_EPOLLET;
+		ev.data.sockid = sock;
+		mtcp_epoll_ctl(ctx->mctx, ctx->epollfd, MTCP_EPOLL_CTL_ADD, sock, &ev);
+
 		ctx->ctlfd = sock;
 		LOG_INFO("Controlling connection established for server %s:%u",
 						inet_ntoa(global->saddr), global->sport);
 	}
-	// establish data connection
+	// establish data connection (add to epoll list after receiving RUNNING)
 	else {
+//		ev.events = MTCP_EPOLLOUT;
+//		ev.data.sockid = sock;
+//		mtcp_epoll_ctl(ctx->mctx, ctx->epollfd, MTCP_EPOLL_CTL_ADD, sock &ev);
 		ctx->datafd = sock;
 		LOG_INFO("Data connection established for server %s:%u",
 						inet_ntoa(global->saddr), global->sport);
@@ -68,19 +74,60 @@ mperf_connect(struct worker_context *ctx, struct mperf_config *global,
 	return 0;
 }
 
-void
+int
 mperf_init_client(struct worker_context *ctx)
 {
+	struct client_context *client = &ctx->client;
+	uint8_t *data = NULL, *iter = NULL, *pr = NULL;
+	uint32_t nleft = 0, i = 0;
+	uint64_t random = 0;
+
 	memcpy(&ctx->conn_conf, &global_conf.conn_conf,
 					sizeof(struct mperf_conn_config));
 
 	ctx->ctlfd = -1;
 	ctx->datafd = -1;
+
+	// create tx buffer
+	data = (uint8_t *)rte_malloc(NULL, ctx->conn_conf.blksize, 0);
+	if (data == NULL) {
+		LOG_ERROR("Failed to create tx data buffer (%u bytes)",
+						ctx->conn_conf.blksize);
+		return -1;
+	}
+
+	// generate random tx data
+	iter = data;
+	nleft = ctx->conn_conf.blksize;
+
+	while (nleft > 0) {
+		random = rte_rand();
+		pr = (uint8_t *)&random;
+
+		for (i = 0; i < 8; i++) {
+			iter[0] = pr[i];
+			iter += 1;
+			nleft -= 1;
+
+			if (nleft <= 0)
+				break;
+		}
+	}
+	client->tx_data = data;
+	client->tx_bytes = 0;
+	return 0;
 }
 
 void
 mperf_destroy_client(struct worker_context *ctx)
 {
+	struct client_context *client = &ctx->client;
+
+	if (client->tx_data) {
+		rte_free(client->tx_data);
+		client->tx_data = NULL;
+	}
+
 	close_mtcp_fd(ctx->mctx, ctx->datafd);
 	close_mtcp_fd(ctx->mctx, ctx->ctlfd);
 }
@@ -90,6 +137,7 @@ mperf_handle_client_msg(struct worker_context *ctx)
 {
 	int ret = 0;
 	uint8_t state;
+	struct mtcp_epoll_event ev;
 
 	ret = nread(ctx->ctlfd, (char *)&state, sizeof(uint8_t));
 	if (ret == 0) {
@@ -102,6 +150,8 @@ mperf_handle_client_msg(struct worker_context *ctx)
 						errno, strerror(errno));
 		return -1;
 	}
+
+	LOG_DEBUG("recv state %u", state);
 
 	switch (state) {
 		case TEST_STATE_PARAM_EXCHANGE:
@@ -148,12 +198,19 @@ mperf_handle_client_msg(struct worker_context *ctx)
 			if (ctx->test_state == TEST_STATE_CREATE_STREAM) {
 				ctx->test_state = TEST_STATE_RUNNING;
 
-				// test codes
-				mperf_set_test_state(TEST_STATE_END);
-				ctx->test_state = TEST_STATE_END;
-				return 1;
+//				// test codes
+//				mperf_set_test_state(TEST_STATE_END);
+//				ctx->test_state = TEST_STATE_END;
+//				return 1;
 
-				// TODO send data
+				// add datafd to epoll list
+				memset(&ev, 0, sizeof(ev));
+				ev.events = MTCP_EPOLLOUT;
+				ev.data.sockid = ctx->datafd;
+
+				mtcp_epoll_ctl(ctx->mctx, ctx->epollfd, MTCP_EPOLL_CTL_ADD,
+								ctx->datafd, &ev);
+				break;
 			}
 			else {
 				LOG_ERROR("Wrong state %u when receiving RUNNING",
@@ -173,6 +230,24 @@ mperf_handle_client_msg(struct worker_context *ctx)
 	return 0;
 }
 
+static inline int
+mperf_send(struct worker_context *ctx)
+{
+	int ret = 0;
+	struct client_context *client = &ctx->client;
+
+	ret = nwrite(ctx->datafd, (char *)client->tx_data,
+					ctx->conn_conf.blksize);
+
+	if (ret < 0) {
+		LOG_ERROR("Failed to send data, err %d (%s)", errno, strerror(errno));
+		return ret;
+	}
+
+	client->tx_bytes += ret;
+	return 0;
+}
+
 /* client main loop */
 int
 mperf_client_loop(void)
@@ -185,7 +260,12 @@ mperf_client_loop(void)
 	int nevent = 0, i = 0;
 
 	// init client context
-	mperf_init_client(ctx);
+	ret = mperf_init_client(ctx);
+	if (ret < 0) {
+		LOG_ERROR("Failed to init client");
+		ctx->test_state = TEST_STATE_ERROR;
+		goto done;
+	}
 
 	// connect to server
 	ret = mperf_connect(ctx, global, 1 /* is_ctl */);
@@ -210,6 +290,8 @@ mperf_client_loop(void)
 
 			// control message
 			if (pev->data.sockid == ctx->ctlfd) {
+				LOG_DEBUG("ctlfd EPOLLIN");
+
 				ret = mperf_handle_client_msg(ctx);
 				if (ret < 0) {
 					LOG_ERROR("Failed to handle message");
@@ -221,7 +303,16 @@ mperf_client_loop(void)
 			}
 			// data connection
 			else if (pev->data.sockid == ctx->datafd) {
-			
+				LOG_DEBUG("datafd EPOLLOUT");
+
+				ret = mperf_send(ctx);
+				if (ret < 0) {
+					ctx->test_state = TEST_STATE_ERROR;
+					break;
+				}
+
+				// test
+				mperf_set_test_state(TEST_STATE_END);
 			}
 		}
 
@@ -241,6 +332,7 @@ mperf_client_loop(void)
 		}
 	}
 
+done:
 	ctx->done = 1;
 	mperf_destroy_client(ctx);
 

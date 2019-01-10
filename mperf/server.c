@@ -136,9 +136,9 @@ mperf_accept(struct worker_context *ctx)
  		// set non-blocking mode
 		mtcp_setsock_nonblock(ctx->mctx, sock);
 
-		// add controller to epoll list
+		// add data connection to epoll list
 		memset(&ev, 0, sizeof(struct mtcp_epoll_event));
-		ev.events = MTCP_EPOLLIN | MTCP_EPOLLET;
+		ev.events = MTCP_EPOLLIN;
 		ev.data.sockid = sock;
 		mtcp_epoll_ctl(ctx->mctx, ctx->epollfd, MTCP_EPOLL_CTL_ADD, sock, &ev);
 
@@ -236,6 +236,33 @@ mperf_handle_server_msg(struct worker_context *ctx)
 	return 0;
 }
 
+static inline int
+mperf_recv(struct worker_context *ctx)
+{
+	struct server_context *server = &ctx->server;
+	ssize_t nread = 0, nleft;
+
+	nleft = ctx->conn_conf.blksize;
+	while (nleft > 0) {
+		nread = mtcp_read(ctx->mctx, ctx->datafd,
+						server->rx_buffer, RX_BUF_SIZE);
+
+		if (nread < 0) {
+			if (errno == EINTR || errno == EAGAIN || errno == EWOULDBLOCK)
+				break;
+			else
+				return -1;
+		}
+		else if (nread == 0)
+			return -1;
+
+		server->rx_bytes += nread;
+		nleft -= nread;
+	}
+
+	return 0;
+}
+
 void
 mperf_init_server(struct worker_context *ctx)
 {
@@ -247,6 +274,7 @@ mperf_init_server(struct worker_context *ctx)
 	ctx->server.cli_ip.s_addr = 0;
 	ctx->server.cli_ctl_port = 0;
 	ctx->server.cli_data_port = 0;
+	ctx->server.rx_bytes = 0;
 	ctx->ctlfd = -1;
 	ctx->datafd = -1;
 }
@@ -331,7 +359,13 @@ mperf_server_loop(void)
 			/* if the event is for the data connection, receive data */
 			else if (pev->data.sockid == ctx->datafd) {
 				LOG_DEBUG("datafd EPOLLIN");
-				//TODO recv data
+
+				ret = mperf_recv(ctx);
+				if (ret < 0) {
+					ctx->test_state = TEST_STATE_ERROR;
+					LOG_DEBUG("Failed to recv data");
+					break;
+				}
 			}
 		}
 

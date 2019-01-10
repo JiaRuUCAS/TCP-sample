@@ -20,6 +20,8 @@ enum {
 	TEST_STATE_ERROR,
 };
 
+#define RX_BUF_SIZE	4096
+
 struct server_context {
 	/* Socket: listener */
 	int listenfd;
@@ -29,11 +31,19 @@ struct server_context {
 	uint16_t cli_ctl_port;
 	/* client data port */
 	uint16_t cli_data_port;
+
+	/* RX statistics */
+	uint64_t rx_bytes;
+	/* RX buffer */
+	char rx_buffer[RX_BUF_SIZE];
 };
 
 struct client_context {
-	// TODO
-	int unused;
+	/* TX statistics */
+	uint64_t tx_bytes;
+
+	/* Data to send */
+	uint8_t *tx_data;
 };
 
 struct worker_context {
